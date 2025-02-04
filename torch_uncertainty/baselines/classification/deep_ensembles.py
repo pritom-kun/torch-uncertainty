@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import Literal
 
+from torch import nn
+
 from torch_uncertainty.models import deep_ensembles
 from torch_uncertainty.routines.classification import ClassificationRoutine
 from torch_uncertainty.utils import get_version
@@ -38,7 +40,7 @@ class DeepEnsemblesBaseline(ClassificationRoutine):
             trained_model = backbone_cls.load_from_checkpoint(
                 checkpoint_path=ckpt_file,
                 hparams_file=hparams_file,
-                loss=None,
+                loss="CrossEntropyLoss",
                 optim_recipe=None,
             ).eval()
             models.append(trained_model.model)
@@ -47,7 +49,7 @@ class DeepEnsemblesBaseline(ClassificationRoutine):
         super().__init__(  # coverage: ignore
             num_classes=num_classes,
             model=de,
-            loss=None,
+            loss=nn.CrossEntropyLoss(),
             is_ensemble=de.num_estimators > 1,
             eval_ood=eval_ood,
             eval_shift=eval_shift,
