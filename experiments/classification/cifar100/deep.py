@@ -13,12 +13,12 @@ from lightning.pytorch.loggers import TensorBoardLogger
 from torch_uncertainty import TUTrainer
 from torch_uncertainty.baselines.classification.deep_ensembles import \
     DeepEnsemblesBaseline
-from torch_uncertainty.datamodules import CIFAR10DataModule
+from torch_uncertainty.datamodules import CIFAR100DataModule
 
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("medium")
 
-    dm = CIFAR10DataModule(
+    dm = CIFAR100DataModule(
         root="./data",
         batch_size=128,
         eval_ood=True
@@ -31,7 +31,7 @@ if __name__ == "__main__":
     # args.task = "classification"
     model = DeepEnsemblesBaseline(
         num_classes=dm.num_classes,
-        log_path="logs/cifar10/resnet18/standard",
+        log_path="logs/cifar100/resnet18/standard",
         checkpoint_ids=[0,1,2,3],
         backbone="resnet",
         eval_ood=True
@@ -39,7 +39,7 @@ if __name__ == "__main__":
 
     # Create the trainer that will handle the training
     tb_logger = TensorBoardLogger(
-        save_dir="logs/cifar10/resnet18",
+        save_dir="logs/cifar100/resnet18",
         name="deep",
         default_hp_metric=False
     )
