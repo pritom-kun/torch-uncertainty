@@ -1,15 +1,10 @@
 import os
 import sys
 
-import torch
-
-# Add the parent directory of /exp to sys.path
-# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../')))
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
+import torch
 from lightning.pytorch.loggers import TensorBoardLogger
-
 from torch_uncertainty import TUTrainer
 from torch_uncertainty.baselines.classification.deep_ensembles import \
     DeepEnsemblesBaseline

@@ -99,8 +99,8 @@ class ClassificationRoutine(LightningModule):
                 detection performance. Defaults to ``False``.
             eval_shift (bool, optional): Indicates whether to evaluate the Distribution
                 shift performance. Defaults to ``False``.
-            eval_grouping_loss (bool, optional): Indicates whether to evaluate the
-                grouping loss or not. Defaults to ``False``.
+            eval_grouping_loss (bool, optional): Indicates whether to evaluate the grouping loss or not.
+                Defaults to ``False``.
             ood_criterion (str, optional): OOD criterion. Available options are
                 - ``"msp"`` (default): Maximum softmax probability.
                 - ``"logit"``: Maximum logit.
@@ -117,8 +117,7 @@ class ClassificationRoutine(LightningModule):
                 metrics. Defaults to ``15``.
             log_plots (bool, optional): Indicates whether to log plots from
                 metrics. Defaults to ``False``.
-            save_in_csv(bool, optional): Save the results in csv. Defaults to
-                ``False``.
+            save_in_csv(bool, optional): Save the results in csv. Defaults to ``False``.
 
         Warning:
             You must define :attr:`optim_recipe` if you do not use the Lightning CLI.
@@ -263,6 +262,13 @@ class ClassificationRoutine(LightningModule):
             grouping_loss = MetricCollection({"cls/grouping_loss": GroupingLoss()})
             self.val_grouping_loss = grouping_loss.clone(prefix="val/")
             self.test_grouping_loss = grouping_loss.clone(prefix="test/")
+
+        # NEW: metrics for misclassification detection
+        self.test_mis_metrics = MetricCollection({
+            "mis/Acc": Accuracy(task="binary"),            # detection accuracy (using a default threshold of 0.5)
+            "mis/AUROC": BinaryAUROC(),                      # AUROC for misclassification detection
+            "mis/AUPR": BinaryAveragePrecision(),            # AUPR for misclassification detection
+        })
 
     def _init_mixup(self, mixup_params: dict | None) -> Callable:
         """Setup the optional mixup augmentation based on the :attr:`mixup_params` dict.
@@ -496,7 +502,7 @@ class ClassificationRoutine(LightningModule):
             ood_scores = -confs
 
         if dataloader_idx == 0:
-            # squeeze if binary classification only for binary metrics
+            # Update classification metrics
             self.test_cls_metrics.update(
                 probs.squeeze(-1) if self.binary_cls else probs,
                 targets,
@@ -529,6 +535,16 @@ class ClassificationRoutine(LightningModule):
                 else:
                     pp_probs = pp_logits
                 self.post_cls_metrics.update(pp_probs, targets)
+
+            # NEW: Compute misclassification detection metrics
+            if self.binary_cls:
+                # For binary, use threshold 0.5 on the probability output
+                pred_labels = (probs.squeeze(-1) > 0.5).long()
+            else:
+                pred_labels = probs.argmax(dim=-1)
+            misdet_labels = (pred_labels != targets).long()  # 1 if misclassified, else 0
+            misdet_scores = 1 - confs  # lower confidence implies higher chance of misclassification
+            self.test_mis_metrics.update(misdet_scores, misdet_labels)
 
         if self.eval_ood and dataloader_idx == 1:
             self.test_ood_metrics.update(ood_scores, torch.ones_like(targets))
@@ -617,6 +633,12 @@ class ClassificationRoutine(LightningModule):
                 tmp_metrics = self.test_shift_ens_metrics.compute()
                 self.log_dict(tmp_metrics, sync_dist=True)
                 result_dict.update(tmp_metrics)
+
+        # NEW: Compute and log misclassification detection metrics
+        misdet_results = self.test_mis_metrics.compute()
+        self.log_dict(misdet_results, sync_dist=True)
+        result_dict.update(misdet_results)
+        self.test_mis_metrics.reset()
 
         if isinstance(self.logger, Logger) and self.log_plots:
             self.logger.experiment.add_figure(
